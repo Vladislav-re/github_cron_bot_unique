@@ -1,9 +1,10 @@
 import os
 import asyncio
 import requests
+import difflib
+import random
 from dotenv import load_dotenv
 from telegram import Bot
-import difflib
 
 load_dotenv()
 
@@ -30,13 +31,17 @@ def save_to_history(post):
         for p in history:
             f.write(p.replace('\n', ' ') + "\n")
 
-def generate_post():
-    url = "https://openrouter.ai/api/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        "HTTP-Referer": "https://t.me/a_kak_zarabotat",
-        "Content-Type": "application/json"
+def choose_tone():
+    tones = {
+        "шуточный": "Пиши с лёгкой иронией, местами шуточно, как будто рассказываешь другу.",
+        "дерзкий": "Пиши уверенно, по делу, не церемонясь. Как будто у тебя опыт, а читатель — ленивый.",
+        "деловой": "Пиши как эксперт. Чётко, структурно, по фактам — будто это бизнес-доклад."
     }
+    name = random.choice(list(tones.keys()))
+    return name, tones[name]
+
+def generate_post():
+    tone_key, tone_instruction = choose_tone()
 
     prompt = (
         "Сгенерируй пост для Telegram-канала в формате:\n\n"
@@ -46,14 +51,21 @@ def generate_post():
         "4. 💰 Пример расчёта дохода\n"
         "5. 🔗 Полезные ссылки или ресурсы\n"
         "6. 👤 Подходит тем, у кого: (перечисли навыки или стартовые условия)\n\n"
-        "Пиши не дольше 200 слов, живо, без инфоцыганщины. Форматируй с эмоджи и абзацами."
+        f"{tone_instruction} Без инфоцыганщины. Старайся быть живым и понятным."
     )
+
+    url = "https://openrouter.ai/api/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "HTTP-Referer": "https://t.me/a_kak_zarabotat",
+        "Content-Type": "application/json"
+    }
 
     for attempt in range(5):
         payload = {
             "model": "openai/gpt-3.5-turbo",
             "messages": [
-                {"role": "system", "content": "Ты — эксперт по микрозаработку и полезным нишам."},
+                {"role": "system", "content": "Ты — специалист по идеям заработка для Telegram-канала."},
                 {"role": "user", "content": prompt}
             ]
         }
@@ -65,10 +77,8 @@ def generate_post():
             post = data["choices"][0]["message"]["content"].strip()
             if all(not is_similar(post, old) for old in load_history()):
                 return post
-            else:
-                print("🔁 Пост слишком похож на один из предыдущих. Пробуем заново...")
         else:
-            print("❌ Ошибка OpenRouter:", data)
+            print("❌ Ошибка:", data)
             break
     return None
 
